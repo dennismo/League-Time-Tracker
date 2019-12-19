@@ -5,7 +5,7 @@ import requests, bs4, re, time
 
 import plotly.graph_objects as go
 
-API_KEY = "RGAPI-8552c10b-df36-451c-bc74-3fccd92fe9db"
+API_KEY = "RGAPI-157e7556-3bdf-416d-a545-17f928cc104f"
 ACCOUNT_ID = 'Zl6OGzi4nSF5wqRQrXjrd_Anx3zql7icStsLAiJAZVTzmnE'
 HEADER = {
     "Origin": "https://developer.riotgames.com",
@@ -19,7 +19,7 @@ HEADER = {
 def get_match_ids(beginTime_stamp):
     beginTime = str("{:.3f}".format(beginTime_stamp)).replace(".", "")
     response = requests.get(
-        'https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/Zl6OGzi4nSF5wqRQrXjrd_Anx3zql7icStsLAiJAZVTzmnE',
+        'https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/' + ACCOUNT_ID,
         params={
             "beginTime": beginTime,
         },
