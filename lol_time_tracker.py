@@ -1,12 +1,12 @@
 from functools import reduce
 from datetime import datetime, timedelta
 import pytz
+import sys
 import requests, bs4, re, time
 
 import plotly.graph_objects as go
 
-API_KEY = "RGAPI-157e7556-3bdf-416d-a545-17f928cc104f"
-ACCOUNT_ID = 'Zl6OGzi4nSF5wqRQrXjrd_Anx3zql7icStsLAiJAZVTzmnE'
+API_KEY = "RGAPI-14e60e4c-822c-4ec4-93ff-371cf3c846a6"
 HEADER = {
     "Origin": "https://developer.riotgames.com",
     "Accept-Charset": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -16,10 +16,18 @@ HEADER = {
 }
 
 
-def get_match_ids(beginTime_stamp):
+def get_account_id(user_name):
+    response = requests.get('https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + user_name,
+                            headers=HEADER)
+    if response.status_code != 200:
+        raise Exception("Cannot get accountID via API")
+    return response.json()['accountId']
+
+
+def get_match_ids(beginTime_stamp, accountId):
     beginTime = str("{:.3f}".format(beginTime_stamp)).replace(".", "")
     response = requests.get(
-        'https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/' + ACCOUNT_ID,
+        'https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/' + accountId,
         params={
             "beginTime": beginTime,
         },
@@ -41,7 +49,7 @@ def get_matches_data(match_ids):
     return matches_data
 
 
-def get_time_dict(matches_data,beginTime_stamp):
+def get_time_dict(matches_data, beginTime_stamp):
     time_data = {}
 
     cur_time = tz.localize(datetime.fromtimestamp(beginTime_stamp))
@@ -54,13 +62,12 @@ def get_time_dict(matches_data,beginTime_stamp):
 
     for match_id, match in matches_data.items():
         try:
-            cur_pt = datetime.fromtimestamp(match['gameCreation']/1000).strftime("%Y/%m/%d")
+            cur_pt = datetime.fromtimestamp(match['gameCreation'] / 1000).strftime("%Y/%m/%d")
             time_data[cur_pt] += match['gameDuration'] / 3600
         except:
             print(match)
 
-
-    for time,duration in time_data.items():
+    for time, duration in time_data.items():
         time_data[time] = str("{:.2f}".format(duration))
 
     return time_data
@@ -76,23 +83,11 @@ def transform_data(time_data):
     return total_time_x, total_time_list
 
 
-if __name__ == '__main__':
-    now = datetime.now()
-    tz = pytz.timezone("America/New_York")
-    local_now = tz.localize(now)
-    beginTime_stamp = datetime.timestamp(local_now - timedelta(days=21))
-    print(beginTime_stamp)
-
-    match_ids = get_match_ids(beginTime_stamp)
-    matches_data = get_matches_data(match_ids)
-    print(matches_data)
-    time_data = get_time_dict(matches_data, beginTime_stamp)
-    print(time_data)
-    total_time_x, total_time_list = transform_data(time_data)
-    fig = go.Figure(data=go.Bar(x=total_time_x, y=total_time_list,text=total_time_list,
-            textposition='auto',))
+def render_data(total_time_x, total_time_list, userName, days):
+    fig = go.Figure(data=go.Bar(x=total_time_x, y=total_time_list, text=total_time_list,
+                                textposition='auto', ))
     fig.update_layout(
-        title='Amount of Hours Stellar Spends on League of Legends in the past month',
+        title='Amount of Hours "' + userName + '" Spends on League of Legends in the past ' + str(days) + ' days',
         xaxis_tickfont_size=14,
         yaxis=dict(
             title='Hours',
@@ -101,7 +96,27 @@ if __name__ == '__main__':
         ),
     )
     fig.write_html('stellar_lol_time_tracking.html', auto_open=True)
-    total_time = 0
-    for match_id, match in matches_data.items():
-        total_time += match['gameDuration']
-    print(total_time)
+
+
+if __name__ == '__main__':
+    try:
+        user_name = str(sys.argv[1])
+        days = int(sys.argv[2])
+    except Exception as e:
+        print(e)
+        sys.exit(2)
+
+    now = datetime.now()
+    tz = pytz.timezone("America/New_York")
+    local_now = tz.localize(now)
+    beginTime_stamp = datetime.timestamp(local_now - timedelta(days=days))
+    print(beginTime_stamp)
+
+    accountId = get_account_id(user_name)
+    match_ids = get_match_ids(beginTime_stamp, accountId)
+    matches_data = get_matches_data(match_ids)
+    print(matches_data)
+    time_data = get_time_dict(matches_data, beginTime_stamp)
+    print(time_data)
+    total_time_x, total_time_list = transform_data(time_data)
+    render_data(total_time_x, total_time_list, user_name, days)
