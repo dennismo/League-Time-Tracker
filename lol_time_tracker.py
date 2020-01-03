@@ -1,4 +1,4 @@
-from functools import reduce
+import json
 from datetime import datetime, timedelta
 import pytz
 import sys
@@ -6,7 +6,7 @@ import requests, bs4, re, time
 
 import plotly.graph_objects as go
 
-API_KEY = "RGAPI-14e60e4c-822c-4ec4-93ff-371cf3c846a6"
+API_KEY = "RGAPI-c16c2668-0913-4123-9416-113f700d30f0"
 HEADER = {
     "Origin": "https://developer.riotgames.com",
     "Accept-Charset": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -17,23 +17,25 @@ HEADER = {
 
 
 def get_account_id(user_name):
-    response = requests.get('https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + user_name,
+    response = requests.get("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + user_name,
                             headers=HEADER)
     if response.status_code != 200:
-        raise Exception("Cannot get accountID via API")
+        raise Exception("Cannot get accountID via API" + str(response.status_code) + json.dumps(response.json()))
     return response.json()['accountId']
 
 
 def get_match_ids(beginTime_stamp, accountId):
     beginTime = str("{:.3f}".format(beginTime_stamp)).replace(".", "")
     response = requests.get(
-        'https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/' + accountId,
+        "https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/" + accountId,
         params={
             "beginTime": beginTime,
         },
         headers=HEADER)
+    if response.status_code == 404:
+        return []
     if response.status_code != 200:
-        raise Exception("API call did not go through")
+        raise Exception("API call did not go through " + json.dumps(response.json()))
     match_list = response.json()["matches"]
     match_ids = [match['gameId'] for match in match_list]
     return match_ids
@@ -41,31 +43,36 @@ def get_match_ids(beginTime_stamp, accountId):
 
 def get_matches_data(match_ids):
     resp = dict()
+    matches_data = {}
     for match_id in match_ids:
-        resp[match_id] = requests.get("https://na1.api.riotgames.com/lol/match/v4/matches/" + str(match_id),
-                                      headers=HEADER)
+        response = requests.get("https://na1.api.riotgames.com/lol/match/v4/matches/" + str(match_id),
+                                headers=HEADER)
+        while response.status_code == 429:
+            print('rate limited')
+            time.sleep(0.05)
+            response = requests.get("https://na1.api.riotgames.com/lol/match/v4/matches/" + str(match_id),
+                                    headers=HEADER)
+        resp[match_id] = response
 
     matches_data = {match_id: match.json() for match_id, match in resp.items()}
+
     return matches_data
 
 
 def get_time_dict(matches_data, beginTime_stamp):
     time_data = {}
 
-    cur_time = tz.localize(datetime.fromtimestamp(beginTime_stamp))
-    today_pt = local_now
+    cur_time = datetime.fromtimestamp(beginTime_stamp)
+    today_pt = now
 
-    while cur_time <= local_now + timedelta(hours=1):
+    while cur_time <= now + timedelta(hours=1):
         cur_pt = cur_time.strftime("%Y/%m/%d")
         time_data[cur_pt] = 0
         cur_time += timedelta(days=1)
 
     for match_id, match in matches_data.items():
-        try:
-            cur_pt = datetime.fromtimestamp(match['gameCreation'] / 1000).strftime("%Y/%m/%d")
-            time_data[cur_pt] += match['gameDuration'] / 3600
-        except:
-            print(match)
+        cur_pt = datetime.fromtimestamp(match['gameCreation'] / 1000).strftime("%Y/%m/%d")
+        time_data[cur_pt] += match['gameDuration'] / 3600
 
     for time, duration in time_data.items():
         time_data[time] = str("{:.2f}".format(duration))
@@ -107,10 +114,7 @@ if __name__ == '__main__':
         sys.exit(2)
 
     now = datetime.now()
-    tz = pytz.timezone("America/New_York")
-    local_now = tz.localize(now)
-    beginTime_stamp = datetime.timestamp(local_now - timedelta(days=days))
-    print(beginTime_stamp)
+    beginTime_stamp = datetime.timestamp(now - timedelta(days=days))
 
     accountId = get_account_id(user_name)
     match_ids = get_match_ids(beginTime_stamp, accountId)
@@ -119,4 +123,5 @@ if __name__ == '__main__':
     time_data = get_time_dict(matches_data, beginTime_stamp)
     print(time_data)
     total_time_x, total_time_list = transform_data(time_data)
-    render_data(total_time_x, total_time_list, user_name, days)
+    #render_data(total_time_x, total_time_list, user_name, days)
+    html = render_data([1,2,3], [1,2,3], user_name, days)
