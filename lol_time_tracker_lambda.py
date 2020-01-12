@@ -122,26 +122,17 @@ def lambda_handler(event, context):
         accountId = get_account_id(user_name)
         match_ids = get_match_ids(beginTime_stamp, accountId)
         matches_data = get_matches_data(match_ids)
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'text/html',
-            },
-            'body': "Hello"
-        }
         print("here are match data " + json.dumps(matches_data))
         time_data = get_time_dict(matches_data, beginTime_stamp)
         print("here are the time_data" + json.dumps(time_data))
         total_time_x, total_time_list = transform_data(time_data)
-        # html = render_data(total_time_x, total_time_list, user_name, days) or "html broke"
-        # html = render_data([1,2,3,4,5,6,7,8,9,10,11,12,13,14], [1,2,3,4,5,6,7,8,9,10,11,12,13,14], user_name, days)
-        # html = render_data([1, 2, 3],[1, 2, 3], user_name, days)
+        html = render_data(total_time_x, total_time_list, user_name, days) or "html broke"
         return {
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'text/html',
             },
-            'body': "Hello"
+            'body': html
         }
     except Exception as e:
         return {
